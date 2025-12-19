@@ -1,0 +1,44 @@
+name: Bug report
+description: Report a problem or regression in Barnacle
+title: "[Bug]: "
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect to happen, and what actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps to reproduce the issue (commands, inputs, sample manifest/canvas IDs).
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Python version, Barnacle commit hash, and relevant tool versions (kraken, ruff).
+      placeholder: |
+        OS:
+        Python:
+        Barnacle commit:
+        Kraken:
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / traceback
+      description: Paste relevant error output.
+      render: text

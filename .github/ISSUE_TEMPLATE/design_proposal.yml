@@ -1,0 +1,36 @@
+name: Design proposal
+description: Propose or discuss a design/architecture change
+title: "[Design]: "
+labels: ["type:design"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What problem are you trying to solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the change, including API/contracts impact.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches did you consider and why not?
+    validations:
+      required: false
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Links to specs, examples, or prior art (IIIF, Web Annotation, Kraken).
+    validations:
+      required: false

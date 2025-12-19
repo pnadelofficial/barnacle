@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Barnacle docs
+    url: https://github.com/pulibrary/barnacle
+    about: Start with README and docs in this repo.
