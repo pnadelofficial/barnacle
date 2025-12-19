@@ -25,12 +25,15 @@ The goal is to let each layer evolve independently while keeping interfaces stab
 - **Label**
   - `label: str | dict | list` (raw)
   - `best_label() -> str`
+    - Returns a human-readable label suitable for filenames, logging, and reports.
+    - Language selection and normalization are implementation-defined.
 - **Metadata**
   - `metadata: list[MetadataEntry] | None`
 - **Sequences**
   - `sequences: list[Sequence]`
 - **Traversal helper**
   - `canvases() -> Iterable[Canvas]`
+    - Yields canvases in reading order (sequence order, then canvas order).
 
 #### `Canvas` must provide
 - `id: str`
@@ -96,6 +99,8 @@ Optional metadata:
 Required:
 - `text: str`
 - `engine: str`
+- `engine_config: str`
+  - Deterministic fingerprint of the engine configuration, suitable for cache keys and provenance tracking.
 
 Optional:
 - `engine_version`
@@ -115,6 +120,8 @@ A recognition model may be specified by:
 - DOI (Zenodo)
 - installed model name
 - filesystem path
+
+Exactly one concrete model resolution must be possible before recognition begins.
 
 ### 3.2 `KrakenConfig`
 - `model: ModelRef | None`
@@ -183,4 +190,33 @@ A page is “done” if:
 
 ---
 
-*Checkpoint document generated for project handoff and continuation.*
+## 6. Non-goals (MVP)
+
+The following are explicitly out of scope for the MVP:
+- Full IIIF Presentation 2.1 or 3.0 coverage
+- TEI or scholarly text normalization
+- Automatic typographic modernization (e.g., long-s normalization)
+- Web Annotation serialization (planned future milestone)
+
+---
+
+*This document defines the MVP contracts and may evolve through deliberate design discussion.*
+
+[^1]: In this document, a *contract* describes the required behavior
+and guarantees of a component at its boundaries—what it must accept,
+what it must provide, and what other components may rely on—without
+prescribing how it is implemented.  Contracts are used here to allow
+independent evolution of IIIF models, ATR engines, and the pipeline,
+while maintaining interoperability and reproducibility.
+
+[^2]: *Traversal helpers* are convenience methods that abstract over
+the structural complexity and variability of IIIF manifests to provide
+a stable, predictable way to navigate resources (e.g., from a Manifest
+to its Canvases).  They do not expose the full IIIF data model;
+instead, they provide a minimal, task-oriented view that enables
+common operations (such as iterating pages in reading order) without
+requiring callers to understand all IIIF structural details.
+Traversal helpers exist because IIIF allows multiple valid structural
+representations for the same conceptual content; these helpers
+normalize that variability for downstream processing.
+
