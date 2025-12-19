@@ -3,17 +3,52 @@ name = "barnacle"
 version = "0.1.0"
 description = "IIIF-based OCR/ATR tooling and pipelines for high-quality text extraction from scanned resources."
 authors = [
-    {name = "Cliff Wulfman", email = "cwulfman@princeton.edu"},
+  {name = "Cliff Wulfman", email = "cwulfman@princeton.edu"},
 ]
-dependencies = []
+dependencies = [
+  "pydantic>=2.8",
+  "httpx>=0.27",
+  "rich>=13.7",
+]
 requires-python = ">=3.12"
 readme = "README.md"
 license = {text = "Apache-2.0"}
+
+[project.scripts]
+barnacle = "barnacle.cli:main"
 
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
-
 [tool.pdm]
 distribution = true
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "pytest-cov>=6",
+  "ruff>=0.6",
+  "mypy>=1.10",
+  "types-requests>=2.32.0.20240712", # harmless even if unused
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["barnacle"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --maxfail=1 --color=yes --strict-markers --durations=10"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = ["src"]
