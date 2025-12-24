@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 
 import httpx
 import typer
+import logging
 
 app = typer.Typer(add_completion=False, help="Barnacle MVP tooling")
 
@@ -32,6 +33,46 @@ DEFAULT_IIIF_FORMAT = "jpg"
 DEFAULT_IIIF_QUALITY = "default"
 DEFAULT_IIIF_REGION = "full"
 DEFAULT_IIIF_ROTATION = "0"
+
+class JsonFormatter(logging.Formatter):
+    """Simple JSON formatter for structured logs."""
+    def format(self, record: logging.LogRecord) -> str:
+        payload: dict[str, Any] = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname,
+            "msg": record.getMessage(),
+            "logger": record.name,
+        }
+        # Include any custom attributes passed via `extra=`.
+        reserved = {
+            "name","msg","args","levelname","levelno","pathname","filename","module",
+            "exc_info","exc_text","stack_info","lineno","funcName","created","msecs",
+            "relativeCreated","thread","threadName","processName","process",
+        }
+        for k, v in record.__dict__.items():
+            if k in reserved or k.startswith("_"):
+                continue
+            try:
+                json.dumps(v)
+                payload[k] = v
+            except TypeError:
+                payload[k] = repr(v)
+        if record.exc_info:
+            payload["exc_info"] = self.formatException(record.exc_info)
+        return json.dumps(payload, ensure_ascii=False)
+
+
+def setup_logging(level: str) -> logging.Logger:
+    logger = logging.getLogger("barnacle")
+    logger.setLevel(getattr(logging, level.upper(), logging.INFO))
+    handler = logging.StreamHandler()
+    handler.setFormatter(JsonFormatter())
+    logger.handlers[:] = [handler]
+    logger.propagate = False
+    return logger
+
+
+LOGGER = logging.getLogger("barnacle")
 
 
 @dataclass(frozen=True)
@@ -114,6 +155,35 @@ def _sha1(s: str) -> str:
     return hashlib.sha1(s.encode("utf-8")).hexdigest()
 
 
+
+def page_key(*, manifest_id: str, canvas_id: str, model: str, fmt: str, size: str, quality: str, region: str, rotation: str) -> str:
+    """Stable identifier for a single OCR result for resume-safe runs."""
+    return "|".join([manifest_id, canvas_id, model, fmt, size, quality, region, rotation])
+
+
+def load_processed_keys(out_path: Path) -> set[str]:
+    """Reads an existing JSONL output file and returns all recorded page_key values."""
+    processed: set[str] = set()
+    if not out_path.exists():
+        return processed
+    try:
+        with out_path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    # Ignore truncated/invalid lines (e.g., partial last line).
+                    continue
+                k = rec.get("page_key")
+                if isinstance(k, str):
+                    processed.add(k)
+    except OSError:
+        # If the file cannot be read for some reason, fall back to reprocessing.
+        return set()
+    return processed
 def fetch_bytes(url: str, *, timeout: float = 30.0) -> bytes:
     with httpx.Client(timeout=timeout, follow_redirects=True) as client:
         resp = client.get(url)
@@ -185,7 +255,7 @@ def run_kraken_ocr(image_path: Path, *, model: str) -> str:
         if out_path.exists():
             return out_path.read_text(encoding="utf-8", errors="replace")
         else:
-            print("kraken returned no text")
+            LOGGER.info("kraken_no_output", extra={"image_path": str(image_path), "model": model})
             return ""
 
 
@@ -379,6 +449,12 @@ def ocr_cmd(
     ark: str | None = typer.Option(
         None, "--ark", help="Optional provenance field (CSV column in pipeline mode)"
     ),
+    resume: bool = typer.Option(
+        True, "--resume/--no-resume", help="Skip pages already present in the output JSONL"
+    ),
+    log_level: str = typer.Option(
+        "INFO", "--log-level", help="Logging verbosity (DEBUG, INFO, WARNING, ERROR)"
+    ),
     model_auto_install: bool = typer.Option(
         True, "--model-auto-install/--no-model-auto-install", help="If model looks like a DOI, run `kraken get` first"
     ),
@@ -389,12 +465,19 @@ def ocr_cmd(
     Example:
         barnacle ocr <manifest-or-collection> --model 10.5281/zenodo.14585602 --out out.jsonl --max-pages 5
     """
+    global LOGGER
+    LOGGER = setup_logging(log_level)
+
     out = out.expanduser()
     cache_dir = cache_dir.expanduser()
     img_cache = cache_dir / "images"
     img_cache.mkdir(parents=True, exist_ok=True)
 
     resolved_model = resolve_kraken_model(model, auto_install=model_auto_install)
+
+    processed_keys = load_processed_keys(out) if resume else set()
+    if processed_keys:
+        LOGGER.info("resume_loaded", extra={"out": str(out), "processed": len(processed_keys)})
 
     def append_record(rec: dict[str, Any]) -> None:
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -430,6 +513,21 @@ def ocr_cmd(
                 fmt=fmt,
             )
 
+
+            canvas_id = str(canvas.get("@id") or "")
+            k = page_key(
+                manifest_id=manifest_id,
+                canvas_id=canvas_id,
+                model=resolved_model,
+                fmt=fmt,
+                size=size,
+                quality=quality,
+                region=region,
+                rotation=rotation,
+            )
+            if resume and k in processed_keys:
+                LOGGER.info("page_skip", extra={"manifest": manifest_id, "canvas_index": c_i, "page_key": k})
+                continue
             # cache download
             cache_key = _sha1(image_url)
             img_path = img_cache / f"{cache_key}.{fmt}"
@@ -447,6 +545,8 @@ def ocr_cmd(
 
             rec = {
                 "created_at": datetime.now(timezone.utc).isoformat(),
+                "page_key": k,
+                "canvas_index": c_i,
                 "engine": "kraken",
                 "model": {"ref": model, "resolved": resolved_model},
                 "manifest_url": manifest_id,
@@ -458,7 +558,10 @@ def ocr_cmd(
                 "ark": ark,
             }
             append_record(rec)
+            if resume:
+                processed_keys.add(k)
             pages_processed += 1
+            LOGGER.info("page_done", extra={"manifest": manifest_id, "canvas_index": c_i, "elapsed_ms": elapsed_ms, "text_len": len(text_out), "page_key": k})
             typer.echo(f"✅ {manifest_id} canvas[{c_i}] → appended ({elapsed_ms} ms)")
 
 
