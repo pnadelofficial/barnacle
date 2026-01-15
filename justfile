@@ -111,6 +111,50 @@ ocr-resume-10:
 
 
 # ----------------------------
+# Batch runner (resume-safe)
+# ----------------------------
+
+# Usage:
+#   just batch-ocr-resume manifests.txt
+#   just batch-ocr-resume manifests.txt 5
+#   OUT_DIR=runs/ocr-2026-01-15 LOG_LEVEL=INFO just batch-ocr-resume manifests.txt
+#
+# File format:
+#   - one URL per line
+#   - blank lines allowed
+#   - lines beginning with # are ignored
+batch-ocr-resume MANIFEST_LIST MAX_PAGES="0":
+    bash -eu -c ' \
+      list="{{MANIFEST_LIST}}"; \
+      if [ ! -f "$list" ]; then echo "Manifest list not found: $list" >&2; exit 2; fi; \
+      n=0; \
+      while IFS= read -r line || [ -n "$line" ]; do \
+        url="$line"; \
+        url="${url%%#*}"; \
+        url="$(printf "%s" "$url" | sed -e "s/^[[:space:]]*//" -e "s/[[:space:]]*$//")"; \
+        if [ -z "$url" ]; then continue; fi; \
+        n=$((n+1)); \
+        echo "[$n] $url"; \
+        if [ "{{MAX_PAGES}}" = "0" ]; then \
+          just ocr-resume "$url"; \
+        else \
+          just ocr-resume "$url" "{{MAX_PAGES}}"; \
+        fi; \
+      done < "$list" \
+    '
+
+
+# ----------------------------
+# Resume-run status / reporting
+# ----------------------------
+
+# Usage:
+#   just ocr-resume-status
+#   OUT_DIR=runs/ocr-2026-01-15 just ocr-resume-status
+ocr-resume-status:
+    pdm run python scripts/ocr_resume_status.py
+
+# ----------------------------
 # Profiling / timing
 # ----------------------------
 
