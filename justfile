@@ -76,6 +76,39 @@ ocr-smoke:
 ocr-10:
     just ocr "${FIGGY_MANIFEST}" 10
 
+# ----------------------------
+# OCR (resume-safe, production-friendly)
+# ----------------------------
+
+# Where per-manifest outputs go. Override as needed:
+#   OUT_DIR=runs/ocr-2026-01-15 just ocr-resume <url>
+OUT_DIR := "runs/ocr"
+
+# Usage:
+#   just ocr-resume <MANIFEST_OR_COLLECTION>
+#   just ocr-resume <MANIFEST_OR_COLLECTION> 10
+#
+# Notes:
+# - Output file is derived from the manifest URL via SHA1:
+#     runs/ocr/<sha1>.jsonl
+# - This plays nicely with Barnacle's built-in --resume behavior
+#   (skip pages already present in the output JSONL).
+ocr-resume MANIFEST_OR_COLLECTION MAX_PAGES="0":
+    mkdir -p "${OUT_DIR}"
+    out="${OUT_DIR}/$(pdm run python -c 'import hashlib,sys; print(hashlib.sha1(sys.argv[1].encode("utf-8")).hexdigest())' "{{MANIFEST_OR_COLLECTION}}").jsonl"; \
+    if [ "{{MAX_PAGES}}" = "0" ]; then \
+      pdm run barnacle ocr "{{MANIFEST_OR_COLLECTION}}" --model "${MODEL}" --out "${out}" --log-level "${LOG_LEVEL}" --resume; \
+    else \
+      pdm run barnacle ocr "{{MANIFEST_OR_COLLECTION}}" --model "${MODEL}" --out "${out}" --max-pages "{{MAX_PAGES}}" --log-level "${LOG_LEVEL}" --resume; \
+    fi; \
+    echo "Wrote/updated: ${out}"
+
+ocr-resume-smoke:
+    just ocr-resume "${FIGGY_MANIFEST}" 2
+
+ocr-resume-10:
+    just ocr-resume "${FIGGY_MANIFEST}" 10
+
 
 # ----------------------------
 # Profiling / timing
