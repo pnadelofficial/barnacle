@@ -9,18 +9,17 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy dependency files first (for better layer caching)
-COPY pyproject.toml pdm.lock ./
-
-
-RUN pip install --no-cache-dir pdm
-
-
-RUN pdm install --prod --no-lock
-
-# Copy the rest of the application
+# Copy everything first
 COPY . .
 
+# Install PDM
+RUN pip install --no-cache-dir pdm
+
+# Install dependencies and the package
+RUN pdm install --prod --no-lock
+
+# Set Python path so modules can be imported
 ENV PYTHONPATH=/app/__pypackages__/3.11/lib:/app/src
 
+# Default command
 CMD ["bash"]
