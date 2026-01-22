@@ -21,6 +21,7 @@ RUN pip install --no-cache-dir pdm
 # Install dependencies and the package
 RUN pdm install --prod --no-lock
 RUN pip install typer --no-cache-dir
+RUN pip install kraken --no-cache-dir
 
 # Set Python path AND add PDM bin to PATH
 ENV PYTHONPATH=/app/__pypackages__/3.11/lib:/app/src
