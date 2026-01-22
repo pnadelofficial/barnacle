@@ -12,7 +12,7 @@ WORKDIR /app
 # Copy everything
 COPY . .
 
-# Install with all extras (if defined)
-RUN pip install --no-cache-dir -e ".[dev]" || pip install --no-cache-dir -e .
+# Install directly with pip (this reads pyproject.toml and installs all dependencies)
+RUN pip install --no-cache-dir -e .
 
 CMD ["bash"]
