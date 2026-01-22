@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# Install system dependencies
+# Install system dependencies (Kraken may need some of these)
 RUN apt-get update && apt-get install -y \
     git \
     libxml2 \
@@ -12,7 +12,18 @@ WORKDIR /app
 # Copy everything
 COPY . .
 
-# Install directly with pip (this reads pyproject.toml and installs all dependencies)
-RUN pip install --no-cache-dir -e .
+# Create a dummy README if it doesn't exist (if needed)
+RUN test -f README.md || echo "# Barnacle" > README.md
+
+# Install PDM
+RUN pip install --no-cache-dir pdm
+
+# Install dependencies and the package
+RUN pdm install --prod --no-lock
+RUN pip install typer --no-cache-dir
+
+# Set Python path AND add PDM bin to PATH
+ENV PYTHONPATH=/app/__pypackages__/3.11/lib:/app/src
+ENV PATH="/app/__pypackages__/3.11/bin:$PATH"
 
 CMD ["bash"]
